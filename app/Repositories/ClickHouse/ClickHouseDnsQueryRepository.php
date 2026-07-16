@@ -4,7 +4,7 @@ namespace App\Repositories\ClickHouse;
 
 use App\Contracts\Repositories\DnsQueryRepositoryInterface;
 use BadMethodCallException;
-use Illuminate\Database\Query\Builder;
+use PhpClickHouseLaravel\Builder;
 use Illuminate\Support\Facades\DB;
 
 class ClickHouseDnsQueryRepository implements DnsQueryRepositoryInterface
@@ -25,7 +25,7 @@ class ClickHouseDnsQueryRepository implements DnsQueryRepositoryInterface
         'disallowed',
     ];
 
-    protected function query(): Builder
+    protected function query()
     {
         return DB::connection('clickhouse')
             ->table('dns_queries');
@@ -41,7 +41,7 @@ class ClickHouseDnsQueryRepository implements DnsQueryRepositoryInterface
         };
     }
 
-    private function buildFilteredQuery(array $filters): Builder
+    private function buildFilteredQuery(array $filters)
     {
         $query = $this->query();
 
@@ -54,7 +54,7 @@ class ClickHouseDnsQueryRepository implements DnsQueryRepositoryInterface
     }
 
     private function applyFilters(
-        Builder $query,
+        $query,
         array $filters
     ): void {
 
@@ -156,7 +156,7 @@ class ClickHouseDnsQueryRepository implements DnsQueryRepositoryInterface
     */
 
     private function applyDateFilters(
-        Builder $query,
+        $query,
         array $filters
     ): void {
 
