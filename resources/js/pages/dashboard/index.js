@@ -8,7 +8,7 @@ const page = document.getElementById('dashboard-page');
 
 if (!page) {
 
-    console.warn('Dashboard page not found.');
+    return;
 
 } else {
 
