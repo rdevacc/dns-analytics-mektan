@@ -6,6 +6,7 @@ use App\Contracts\Repositories\DnsQueryRepositoryInterface;
 use BadMethodCallException;
 use PhpClickHouseLaravel\Builder;
 use Illuminate\Support\Facades\DB;
+use Tinderbox\ClickhouseBuilder\Query\Expression;
 
 class ClickHouseDnsQueryRepository implements DnsQueryRepositoryInterface
 {
@@ -367,15 +368,15 @@ class ClickHouseDnsQueryRepository implements DnsQueryRepositoryInterface
         $query = $this->buildFilteredQuery($filters);
 
         $rows = $query
-            ->select([
-                'COUNT() AS total_queries',
-                'countIf(disallowed = 1) AS blocked_queries',
-                'countIf(disallowed = 0) AS allowed_queries',
-                'countIf(cached = 1) AS cached_queries',
-                'AVG(elapsed_ms) AS avg_response_time',
-            ])
-            ->get()
-            ->all();
+                ->select([
+                    new Expression('COUNT() AS total_queries'),
+                    new Expression('countIf(disallowed = 1) AS blocked_queries'),
+                    new Expression('countIf(disallowed = 0) AS allowed_queries'),
+                    new Expression('countIf(cached = 1) AS cached_queries'),
+                    new Expression('AVG(elapsed_ms) AS avg_response_time'),
+                ])
+                ->get()
+                ->all();
 
         $summary = $rows[0] ?? [];
 
