@@ -4,40 +4,161 @@ namespace App\Repositories\ClickHouse;
 
 use App\Contracts\Repositories\DnsQueryRepositoryInterface;
 use BadMethodCallException;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 
 class ClickHouseDnsQueryRepository implements DnsQueryRepositoryInterface
 {
 
-    protected function query()
+    private const ALLOWED_SORT_COLUMNS = [
+        'event_time',
+        'client_ip',
+        'client_name',
+        'vlan_name',
+        'domain',
+        'query_type',
+        'status',
+        'reason',
+        'cached',
+        'elapsed_ms',
+        'upstream',
+        'disallowed',
+    ];
+
+    protected function query(): Builder
     {
         return DB::connection('clickhouse')
             ->table('dns_queries');
     }
 
-    public function getPaginated(
-        array $filters = [],
-        int $limit = 25,
-        int $offset = 0,
-        string $orderBy = 'event_time',
-        string $orderDirection = 'desc'
-    ): array {
-        throw new BadMethodCallException('Not implemented.');
-    }
-
-    public function getFilterOptions(): array
+    private function getTimeBucketExpression(string $interval): string
     {
-        throw new BadMethodCallException('Not implemented.');
+        return match ($interval) {
+            'hour' => 'toStartOfHour(event_time)',
+            'day' => 'toStartOfDay(event_time)',
+            'month' => 'toStartOfMonth(event_time)',
+            default => 'toStartOfDay(event_time)',
+        };
     }
 
-    public function findByQueryId(string $queryId): ?array
-    {
-        throw new BadMethodCallException('Not implemented.');
-    }
-
-    public function getDashboardSummary(array $filters = []): array
+    private function buildFilteredQuery(array $filters): Builder
     {
         $query = $this->query();
+
+        $this->applyFilters(
+            $query,
+            $filters
+        );
+
+        return $query;
+    }
+
+    private function applyFilters(
+        Builder $query,
+        array $filters
+    ): void {
+
+        $this->applyDateFilters(
+            $query,
+            $filters
+        );
+
+        if (!empty($filters['vlan_name'])) {
+            $query->where(
+                'vlan_name',
+                $filters['vlan_name']
+            );
+        }
+
+        if (!empty($filters['client_ip'])) {
+            $query->where(
+                'client_ip',
+                $filters['client_ip']
+            );
+        }
+
+        if (!empty($filters['query_type'])) {
+            $query->where(
+                'query_type',
+                $filters['query_type']
+            );
+        }
+
+        if (!empty($filters['status'])) {
+            $query->where(
+                'status',
+                $filters['status']
+            );
+        }
+
+        if (!empty($filters['reason'])) {
+            $query->where(
+                'reason',
+                $filters['reason']
+            );
+        }
+
+        if (!empty($filters['upstream'])) {
+            $query->where(
+                'upstream',
+                $filters['upstream']
+            );
+        }
+
+        if (
+            array_key_exists('cached', $filters)
+            && $filters['cached'] !== ''
+            && $filters['cached'] !== null
+        ) {
+            $query->where(
+                'cached',
+                filter_var(
+                    $filters['cached'],
+                    FILTER_VALIDATE_BOOLEAN
+                )
+            );
+        }
+
+        if (
+            array_key_exists('disallowed', $filters)
+            && $filters['disallowed'] !== ''
+            && $filters['disallowed'] !== null
+        ) {
+            $query->where(
+                'disallowed',
+                filter_var(
+                    $filters['disallowed'],
+                    FILTER_VALIDATE_BOOLEAN
+                )
+            );
+        }
+
+        if (
+            isset($filters['filter_id'])
+            && $filters['filter_id'] !== ''
+        ) {
+            $query->where(
+                'filter_id',
+                (int) $filters['filter_id']
+            );
+        }
+
+        $this->applySearchFilter(
+            $query,
+            $filters['search'] ?? null
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Helper
+    |--------------------------------------------------------------------------
+    */
+
+    private function applyDateFilters(
+        Builder $query,
+        array $filters
+    ): void {
 
         if (!empty($filters['date_from'])) {
             $query->where(
@@ -54,6 +175,196 @@ class ClickHouseDnsQueryRepository implements DnsQueryRepositoryInterface
                 $filters['date_to']
             );
         }
+
+        $this->applyContainsFilter(
+            $query,
+            'domain',
+            $filters['domain'] ?? null
+        );
+
+        $this->applyContainsFilter(
+            $query,
+            'client_name',
+            $filters['client_name'] ?? null
+        );
+
+        $this->applyContainsFilter(
+            $query,
+            'matched_rule',
+            $filters['matched_rule'] ?? null
+        );
+
+    }
+
+    private function applyContainsFilter(
+        Builder $query,
+        string $column,
+        ?string $value
+    ): void {
+
+        if (blank($value)) {
+            return;
+        }
+
+        $escaped = str_replace(
+            "'",
+            "\\'",
+            trim($value)
+        );
+
+        $query->whereRaw(
+            "positionCaseInsensitive($column, '{$escaped}') > 0"
+        );
+    }
+
+    private function applySearchFilter(
+        Builder $query,
+        ?string $search
+    ): void {
+
+        if (blank($search)) {
+            return;
+        }
+
+        $keywords = preg_split(
+            '/\s+/',
+            trim($search),
+            -1,
+            PREG_SPLIT_NO_EMPTY
+        );
+
+        foreach ($keywords as $keyword) {
+
+            $escaped = str_replace(
+                "'",
+                "\\'",
+                $keyword
+            );
+
+            $query->where(function (Builder $query) use ($escaped) {
+
+                $query->whereRaw(
+                    "positionCaseInsensitive(domain, '{$escaped}') > 0"
+                );
+
+                $query->orWhereRaw(
+                    "positionCaseInsensitive(client_name, '{$escaped}') > 0"
+                );
+
+                $query->orWhereRaw(
+                    "positionCaseInsensitive(client_ip, '{$escaped}') > 0"
+                );
+
+                $query->orWhereRaw(
+                    "positionCaseInsensitive(matched_rule, '{$escaped}') > 0"
+                );
+
+            });
+
+        }
+
+    }
+
+    public function getPaginated(
+        array $filters = [],
+        int $limit = 25,
+        int $offset = 0,
+        string $orderBy = 'event_time',
+        string $orderDirection = 'desc'
+    ): array {
+
+        /*
+        * Total data hanya berdasarkan filter tanggal.
+        */
+        $totalQuery = $this->query();
+
+        $this->applyDateFilters(
+            $totalQuery,
+            $filters
+        );
+
+        $total = $totalQuery->count();
+
+        /*
+        * Query utama.
+        */
+        $query = $this->buildFilteredQuery($filters);
+
+        $filteredTotal = (clone $query)->count();
+
+        $orderBy = in_array(
+            $orderBy,
+            self::ALLOWED_SORT_COLUMNS,
+            true
+        )
+            ? $orderBy
+            : 'event_time';
+
+        $orderDirection = strtolower($orderDirection) === 'asc'
+            ? 'asc'
+            : 'desc';
+
+        $data = $query
+            ->select([
+                'query_id',
+                'event_time',
+                'client_ip',
+                'client_name',
+                'vlan_name',
+                'domain',
+                'query_type',
+                'status',
+                'reason',
+                'cached',
+                'elapsed_ms',
+                'upstream',
+                'disallowed',
+            ])
+            ->orderBy(
+                $orderBy,
+                $orderDirection
+            )
+            ->offset($offset)
+            ->limit($limit)
+            ->get()
+            ->toArray();
+
+        return [
+            'data' => $data,
+            'total' => $total,
+            'filtered_total' => $filteredTotal,
+        ];
+    }
+
+    public function getFilterOptions(): array
+    {
+        return [
+            'vlans' => $this->getDistinctValues('vlan_name'),
+
+            'query_types' => $this->getDistinctValues('query_type'),
+
+            'statuses' => $this->getDistinctValues('status'),
+
+            'reasons' => $this->getDistinctValues('reason'),
+
+            'upstreams' => $this->getDistinctValues('upstream'),
+        ];
+    }
+
+    public function findByQueryId(string $queryId): ?array
+    {
+        $row = $this->query()
+            ->where('query_id', $queryId)
+            ->first();
+
+        return $row
+            ? (array) $row
+            : null;
+    }
+
+    public function getDashboardSummary(array $filters = []): array
+    {
+        $query = $this->buildFilteredQuery($filters);
 
         $summary = $query
             ->selectRaw('COUNT(*) AS total_queries')
@@ -102,37 +413,192 @@ class ClickHouseDnsQueryRepository implements DnsQueryRepositoryInterface
         ];
     }
 
-    public function getTopDomains(array $filters = [], int $limit = 10): array
-    {
-        throw new BadMethodCallException('Not implemented.');
+    public function getTopDomains(
+        array $filters = [],
+        int $limit = 10
+    ): array {
+
+        $query = $this->buildFilteredQuery($filters);
+
+        return $query
+            ->selectRaw('domain, COUNT(*) as total')
+            ->where('domain', '!=', '')
+            ->groupBy('domain')
+            ->orderByDesc('total')
+            ->limit($limit)
+            ->get()
+            ->map(static function ($row): array {
+
+                return [
+                    'domain' => $row->domain,
+                    'total' => (int) $row->total,
+                ];
+
+            })
+            ->toArray();
     }
 
-    public function getTopClients(array $filters = [], int $limit = 10): array
-    {
-        throw new BadMethodCallException('Not implemented.');
+    public function getTopClients(
+        array $filters = [],
+        int $limit = 10
+    ): array {
+
+        $query = $this->buildFilteredQuery($filters);
+
+        return $query
+            ->selectRaw("
+                client_ip,
+                client_name,
+                vlan_name,
+                COUNT(*) as total
+            ")
+            ->where('client_ip', '!=', '')
+            ->groupBy(
+                'client_ip',
+                'client_name',
+                'vlan_name'
+            )
+            ->orderByDesc('total')
+            ->limit($limit)
+            ->get()
+            ->map(static function ($row): array {
+
+                return [
+                    'client_ip' => $row->client_ip,
+                    'client_name' => $row->client_name,
+                    'vlan_name' => $row->vlan_name,
+                    'total' => (int) $row->total,
+                ];
+
+            })
+            ->toArray();
     }
 
-    public function getTopVlans(array $filters = [], int $limit = 10): array
-    {
-        throw new BadMethodCallException('Not implemented.');
+    public function getTopVlans(
+        array $filters = [],
+        int $limit = 10
+    ): array {
+
+        $query = $this->buildFilteredQuery($filters);
+
+        return $query
+            ->selectRaw('vlan_name, COUNT(*) as total')
+            ->where('vlan_name', '!=', '')
+            ->groupBy('vlan_name')
+            ->orderByDesc('total')
+            ->limit($limit)
+            ->get()
+            ->map(static function ($row): array {
+
+                return [
+                    'vlan_name' => $row->vlan_name,
+                    'total' => (int) $row->total,
+                ];
+
+            })
+            ->toArray();
     }
 
-    public function getTopBlockedDomains(array $filters = [], int $limit = 10): array
-    {
-        throw new BadMethodCallException('Not implemented.');
+    public function getTopBlockedDomains(
+        array $filters = [],
+        int $limit = 10
+    ): array {
+
+        $query = $this->buildFilteredQuery($filters);
+
+        return $query
+            ->where('disallowed', true)
+            ->where('domain', '!=', '')
+            ->selectRaw('domain, COUNT(*) as total')
+            ->groupBy('domain')
+            ->orderByDesc('total')
+            ->limit($limit)
+            ->get()
+            ->map(static function ($row): array {
+
+                return [
+                    'domain' => $row->domain,
+                    'total' => (int) $row->total,
+                ];
+
+            })
+            ->toArray();
     }
 
     public function getQueryTimeline(
         array $filters = [],
         string $interval = 'hour'
     ): array {
-        throw new BadMethodCallException('Not implemented.');
+
+        $bucket = $this->getTimeBucketExpression($interval);
+
+        $query = $this->buildFilteredQuery($filters);
+
+        return $query
+            ->selectRaw("$bucket AS bucket")
+            ->selectRaw('COUNT(*) AS total')
+            ->groupBy('bucket')
+            ->orderBy('bucket')
+            ->get()
+            ->map(static function ($row): array {
+                return [
+                    'time' => $row->bucket,
+                    'total' => (int) $row->total,
+                ];
+            })
+            ->toArray();
     }
 
     public function getAllowedBlockedTimeline(
         array $filters = [],
         string $interval = 'hour'
     ): array {
-        throw new BadMethodCallException('Not implemented.');
+
+        $bucket = $this->getTimeBucketExpression($interval);
+
+        $query = $this->buildFilteredQuery($filters);
+
+        return $query
+            ->selectRaw("$bucket AS bucket")
+            ->selectRaw("
+                SUM(
+                    CASE
+                        WHEN disallowed = 0 THEN 1
+                        ELSE 0
+                    END
+                ) AS allowed
+            ")
+            ->selectRaw("
+                SUM(
+                    CASE
+                        WHEN disallowed = 1 THEN 1
+                        ELSE 0
+                    END
+                ) AS blocked
+            ")
+            ->groupBy('bucket')
+            ->orderBy('bucket')
+            ->get()
+            ->map(static function ($row): array {
+
+                return [
+                    'time' => $row->bucket,
+                    'allowed' => (int) $row->allowed,
+                    'blocked' => (int) $row->blocked,
+                ];
+
+            })
+            ->toArray();
+    } 
+
+    private function getDistinctValues(string $column): array
+    {
+        return $this->query()
+            ->where($column, '!=', '')
+            ->distinct()
+            ->orderBy($column)
+            ->pluck($column)
+            ->values()
+            ->toArray();
     }
 }
