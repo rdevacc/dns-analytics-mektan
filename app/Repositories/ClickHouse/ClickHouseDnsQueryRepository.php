@@ -554,25 +554,27 @@ class ClickHouseDnsQueryRepository implements DnsQueryRepositoryInterface
 
         $query = $this->buildFilteredQuery($filters);
 
-        return $query
-        ->select(
-            "$bucket AS bucket",
-            "countIf(disallowed = 0) AS allowed",
-            "countIf(disallowed = 1) AS blocked"
-        )
-        ->groupBy('bucket')
-        ->orderBy('bucket')
-        ->get()
-        ->map(static function ($row): array {
+        $rows = $query
+            ->select([
+                new Expression("$bucket AS bucket"),
+                new Expression("countIf(disallowed = 0) AS allowed"),
+                new Expression("countIf(disallowed = 1) AS blocked"),
+            ])
+            ->groupBy('bucket')
+            ->orderBy('bucket')
+            ->get()
+            ->all();
 
-            return [
-                'time' => $row->bucket,
-                'allowed' => (int) $row->allowed,
-                'blocked' => (int) $row->blocked,
-            ];
-
-        })
-        ->toArray();
+        return array_map(
+            static function ($row): array {
+                return [
+                    'time' => $row->bucket,
+                    'allowed' => (int) $row->allowed,
+                    'blocked' => (int) $row->blocked,
+                ];
+            },
+            $rows
+        );
     } 
 
     private function getDistinctValues(string $column): array
