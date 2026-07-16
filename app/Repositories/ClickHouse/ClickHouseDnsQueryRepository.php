@@ -378,21 +378,21 @@ class ClickHouseDnsQueryRepository implements DnsQueryRepositoryInterface
                 ->get()
                 ->all();
 
-        $summary = $rows[0] ?? [];
+        $summary = $rows[0] ?? new \stdClass();
 
-        $totalQueries = (int) ($summary['total_queries'] ?? 0);
-        $blockedQueries = (int) ($summary['blocked_queries'] ?? 0);
+        $totalQueries = (int) ($summary->total_queries ?? 0);
+        $blockedQueries = (int) ($summary->blocked_queries ?? 0);
 
         return [
             'total_queries' => $totalQueries,
             'blocked_queries' => $blockedQueries,
-            'allowed_queries' => (int) ($summary['allowed_queries'] ?? 0),
-            'cached_queries' => (int) ($summary['cached_queries'] ?? 0),
+            'allowed_queries' => (int) ($summary->allowed_queries ?? 0),
+            'cached_queries' => (int) ($summary->cached_queries ?? 0),
             'blocked_percentage' => $totalQueries > 0
                 ? round(($blockedQueries / $totalQueries) * 100, 2)
                 : 0.0,
             'avg_response_time' => round(
-                (float) ($summary['avg_response_time'] ?? 0),
+                (float) ($summary->avg_response_time ?? 0),
                 2
             ),
         ];
