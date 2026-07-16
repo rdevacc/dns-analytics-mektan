@@ -47,6 +47,9 @@ jobs:
             echo "== Build Assets =="
             npm run build
 
+            echo "== Verify Build =="
+            ls -lah public/build
+
             echo "== Laravel Optimize =="
             php artisan optimize:clear
             php artisan optimize
@@ -59,3 +62,6 @@ jobs:
 
             echo "== Restart Nginx =="
             sudo systemctl reload nginx
+
+            echo "== Health Check =="
+            curl -I http://127.0.0.1 || true
