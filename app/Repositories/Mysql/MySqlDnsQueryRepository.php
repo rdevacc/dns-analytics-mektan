@@ -1,8 +1,9 @@
 <?php
 
-namespace App\Repositories;
+namespace App\Repositories\Mysql;
 
-use App\Contracts\DnsQueryRepositoryInterface;
+use App\Contracts\Repositories\DnsQueryRepositoryInterface;
+
 use App\Models\DnsQuery;
 use Illuminate\Database\Eloquent\Builder;
 

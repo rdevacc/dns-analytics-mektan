@@ -2,13 +2,13 @@
 
 namespace App\Services;
 
-use App\Contracts\DnsQueryRepositoryInterface;
+use App\Contracts\Repositories\DnsQueryRepositoryInterface;
 use Carbon\Carbon;
 
 class DnsQueryService
 {
     public function __construct(
-        private readonly DnsQueryRepositoryInterface $repository
+        private DnsQueryRepositoryInterface $repository
     ) {
     }
 
