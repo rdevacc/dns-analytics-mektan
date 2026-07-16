@@ -30,8 +30,10 @@ jobs:
             npm -v
             pwd
 
-            echo "== Pull Latest Source =="
-            git pull origin main
+            echo "== Update Source =="
+            git fetch origin
+            git checkout main
+            git pull --ff-only origin main
 
             echo "== Composer Install =="
             composer install \
