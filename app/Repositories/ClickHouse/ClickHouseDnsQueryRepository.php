@@ -367,33 +367,14 @@ class ClickHouseDnsQueryRepository implements DnsQueryRepositoryInterface
         $query = $this->buildFilteredQuery($filters);
 
         $summary = $query
-            ->selectRaw('COUNT(*) AS total_queries')
-            ->selectRaw("
-                SUM(
-                    CASE
-                        WHEN disallowed = 1 THEN 1
-                        ELSE 0
-                    END
-                ) AS blocked_queries
-            ")
-            ->selectRaw("
-                SUM(
-                    CASE
-                        WHEN disallowed = 0 THEN 1
-                        ELSE 0
-                    END
-                ) AS allowed_queries
-            ")
-            ->selectRaw("
-                SUM(
-                    CASE
-                        WHEN cached = 1 THEN 1
-                        ELSE 0
-                    END
-                ) AS cached_queries
-            ")
-            ->selectRaw('AVG(elapsed_ms) AS avg_response_time')
-            ->first();
+        ->select([
+            'COUNT() AS total_queries',
+            'countIf(disallowed = 1) AS blocked_queries',
+            'countIf(disallowed = 0) AS allowed_queries',
+            'countIf(cached = 1) AS cached_queries',
+            'AVG(elapsed_ms) AS avg_response_time',
+        ])
+        ->first();
 
         $totalQueries = (int) ($summary->total_queries ?? 0);
         $blockedQueries = (int) ($summary->blocked_queries ?? 0);
@@ -421,7 +402,10 @@ class ClickHouseDnsQueryRepository implements DnsQueryRepositoryInterface
         $query = $this->buildFilteredQuery($filters);
 
         return $query
-            ->selectRaw('domain, COUNT(*) as total')
+            ->select([
+                'domain',
+                'COUNT() AS total'
+            ])
             ->where('domain', '!=', '')
             ->groupBy('domain')
             ->orderByDesc('total')
@@ -446,11 +430,11 @@ class ClickHouseDnsQueryRepository implements DnsQueryRepositoryInterface
         $query = $this->buildFilteredQuery($filters);
 
         return $query
-            ->selectRaw("
-                client_ip,
+            ->select("
+                'client_ip',
                 client_name,
                 vlan_name,
-                COUNT(*) as total
+                COUNT() as total
             ")
             ->where('client_ip', '!=', '')
             ->groupBy(
@@ -482,7 +466,7 @@ class ClickHouseDnsQueryRepository implements DnsQueryRepositoryInterface
         $query = $this->buildFilteredQuery($filters);
 
         return $query
-            ->selectRaw('vlan_name, COUNT(*) as total')
+            ->select('vlan_name', 'COUNT() AS total')
             ->where('vlan_name', '!=', '')
             ->groupBy('vlan_name')
             ->orderByDesc('total')
@@ -509,7 +493,7 @@ class ClickHouseDnsQueryRepository implements DnsQueryRepositoryInterface
         return $query
             ->where('disallowed', true)
             ->where('domain', '!=', '')
-            ->selectRaw('domain, COUNT(*) as total')
+            ->select('domain', 'COUNT() AS total')
             ->groupBy('domain')
             ->orderByDesc('total')
             ->limit($limit)
@@ -535,8 +519,10 @@ class ClickHouseDnsQueryRepository implements DnsQueryRepositoryInterface
         $query = $this->buildFilteredQuery($filters);
 
         return $query
-            ->selectRaw("$bucket AS bucket")
-            ->selectRaw('COUNT(*) AS total')
+            ->select([
+                "$bucket AS bucket",
+                'COUNT() AS total',
+            ])
             ->groupBy('bucket')
             ->orderBy('bucket')
             ->get()
@@ -559,36 +545,24 @@ class ClickHouseDnsQueryRepository implements DnsQueryRepositoryInterface
         $query = $this->buildFilteredQuery($filters);
 
         return $query
-            ->selectRaw("$bucket AS bucket")
-            ->selectRaw("
-                SUM(
-                    CASE
-                        WHEN disallowed = 0 THEN 1
-                        ELSE 0
-                    END
-                ) AS allowed
-            ")
-            ->selectRaw("
-                SUM(
-                    CASE
-                        WHEN disallowed = 1 THEN 1
-                        ELSE 0
-                    END
-                ) AS blocked
-            ")
-            ->groupBy('bucket')
-            ->orderBy('bucket')
-            ->get()
-            ->map(static function ($row): array {
+        ->select(
+            "$bucket AS bucket",
+            "countIf(disallowed = 0) AS allowed",
+            "countIf(disallowed = 1) AS blocked"
+        )
+        ->groupBy('bucket')
+        ->orderBy('bucket')
+        ->get()
+        ->map(static function ($row): array {
 
-                return [
-                    'time' => $row->bucket,
-                    'allowed' => (int) $row->allowed,
-                    'blocked' => (int) $row->blocked,
-                ];
+            return [
+                'time' => $row->bucket,
+                'allowed' => (int) $row->allowed,
+                'blocked' => (int) $row->blocked,
+            ];
 
-            })
-            ->toArray();
+        })
+        ->toArray();
     } 
 
     private function getDistinctValues(string $column): array
