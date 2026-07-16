@@ -366,7 +366,7 @@ class ClickHouseDnsQueryRepository implements DnsQueryRepositoryInterface
     {
         $query = $this->buildFilteredQuery($filters);
 
-        $summary = $query
+        $rows = $query
             ->select([
                 'COUNT() AS total_queries',
                 'countIf(disallowed = 1) AS blocked_queries',
@@ -375,21 +375,23 @@ class ClickHouseDnsQueryRepository implements DnsQueryRepositoryInterface
                 'AVG(elapsed_ms) AS avg_response_time',
             ])
             ->get()
-            ->first();
+            ->all();
 
-        $totalQueries = (int) ($summary->total_queries ?? 0);
-        $blockedQueries = (int) ($summary->blocked_queries ?? 0);
+        $summary = $rows[0] ?? [];
+
+        $totalQueries = (int) ($summary['total_queries'] ?? 0);
+        $blockedQueries = (int) ($summary['blocked_queries'] ?? 0);
 
         return [
             'total_queries' => $totalQueries,
             'blocked_queries' => $blockedQueries,
-            'allowed_queries' => (int) ($summary->allowed_queries ?? 0),
-            'cached_queries' => (int) ($summary->cached_queries ?? 0),
+            'allowed_queries' => (int) ($summary['allowed_queries'] ?? 0),
+            'cached_queries' => (int) ($summary['cached_queries'] ?? 0),
             'blocked_percentage' => $totalQueries > 0
                 ? round(($blockedQueries / $totalQueries) * 100, 2)
                 : 0.0,
             'avg_response_time' => round(
-                (float) ($summary->avg_response_time ?? 0),
+                (float) ($summary['avg_response_time'] ?? 0),
                 2
             ),
         ];
