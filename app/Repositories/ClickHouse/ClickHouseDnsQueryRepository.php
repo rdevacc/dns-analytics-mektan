@@ -325,10 +325,8 @@ class ClickHouseDnsQueryRepository implements DnsQueryRepositoryInterface
                 $orderBy,
                 $orderDirection
             )
-            ->offset($offset)
-            ->limit($limit)
-            ->get()
-            ->toArray();
+            ->limit($limit, $offset)
+            ->getRows();
 
         return [
             'data' => $data,
@@ -579,12 +577,17 @@ class ClickHouseDnsQueryRepository implements DnsQueryRepositoryInterface
 
     private function getDistinctValues(string $column): array
     {
-        return $this->query()
+        $rows = $this->query()
+            ->select($column)
             ->where($column, '!=', '')
-            ->distinct()
+            ->groupBy($column)
             ->orderBy($column)
-            ->pluck($column)
-            ->values()
-            ->toArray();
+            ->getRows();
+
+        return array_values(
+            array_filter(
+                array_column($rows, $column)
+            )
+        );
     }
 }
