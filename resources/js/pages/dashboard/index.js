@@ -5,10 +5,13 @@ import { renderTimelineChart, renderAllowedBlockedTimelineChart } from './charts
 
 const page = document.getElementById('dashboard-page');
 
+if (page) {
 
-if (!page) {
+    initDashboard();
 
-    return;
+    loadSummary();
+
+    loadCharts();
 
 } else {
 
