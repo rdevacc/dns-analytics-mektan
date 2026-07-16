@@ -405,25 +405,26 @@ class ClickHouseDnsQueryRepository implements DnsQueryRepositoryInterface
 
         $query = $this->buildFilteredQuery($filters);
 
-        return $query
+        $rows = $query
             ->select([
                 'domain',
-                'COUNT() AS total'
+                new Expression('COUNT() AS total'),
             ])
-            ->where('domain', '!=', '')
             ->groupBy('domain')
             ->orderByDesc('total')
             ->limit($limit)
             ->get()
-            ->map(static function ($row): array {
+            ->all();
 
+        return array_map(
+            static function ($row): array {
                 return [
                     'domain' => $row->domain,
                     'total' => (int) $row->total,
                 ];
-
-            })
-            ->toArray();
+            },
+            $rows
+        );
     }
 
     public function getTopClients(
@@ -433,33 +434,26 @@ class ClickHouseDnsQueryRepository implements DnsQueryRepositoryInterface
 
         $query = $this->buildFilteredQuery($filters);
 
-        return $query
-            ->select("
-                'client_ip',
-                client_name,
-                vlan_name,
-                COUNT() as total
-            ")
-            ->where('client_ip', '!=', '')
-            ->groupBy(
-                'client_ip',
-                'client_name',
-                'vlan_name'
-            )
-            ->orderByDesc('total')
-            ->limit($limit)
-            ->get()
-            ->map(static function ($row): array {
+        $rows = $query
+        ->select([
+            'client_name',
+            new Expression('COUNT() AS total'),
+        ])
+        ->groupBy('client_name')
+        ->orderByDesc('total')
+        ->limit($limit)
+        ->get()
+        ->all();
 
-                return [
-                    'client_ip' => $row->client_ip,
-                    'client_name' => $row->client_name,
-                    'vlan_name' => $row->vlan_name,
-                    'total' => (int) $row->total,
-                ];
-
-            })
-            ->toArray();
+    return array_map(
+        static function ($row): array {
+            return [
+                'client_name' => $row->client_name,
+                'total' => (int) $row->total,
+            ];
+        },
+        $rows
+    );
     }
 
     public function getTopVlans(
@@ -469,22 +463,26 @@ class ClickHouseDnsQueryRepository implements DnsQueryRepositoryInterface
 
         $query = $this->buildFilteredQuery($filters);
 
-        return $query
-            ->select('vlan_name', 'COUNT() AS total')
-            ->where('vlan_name', '!=', '')
-            ->groupBy('vlan_name')
-            ->orderByDesc('total')
-            ->limit($limit)
-            ->get()
-            ->map(static function ($row): array {
+        $rows = $query
+        ->select([
+            'vlan_name',
+            new Expression('COUNT() AS total'),
+        ])
+        ->groupBy('vlan_name')
+        ->orderByDesc('total')
+        ->limit($limit)
+        ->get()
+        ->all();
 
-                return [
-                    'vlan_name' => $row->vlan_name,
-                    'total' => (int) $row->total,
-                ];
-
-            })
-            ->toArray();
+    return array_map(
+        static function ($row): array {
+            return [
+                'vlan_name' => $row->vlan_name,
+                'total' => (int) $row->total,
+            ];
+        },
+        $rows
+    );
     }
 
     public function getTopBlockedDomains(
@@ -494,23 +492,27 @@ class ClickHouseDnsQueryRepository implements DnsQueryRepositoryInterface
 
         $query = $this->buildFilteredQuery($filters);
 
-        return $query
-            ->where('disallowed', true)
-            ->where('domain', '!=', '')
-            ->select('domain', 'COUNT() AS total')
-            ->groupBy('domain')
-            ->orderByDesc('total')
-            ->limit($limit)
-            ->get()
-            ->map(static function ($row): array {
+        $rows = $query
+        ->where('disallowed', 1)
+        ->select([
+            'domain',
+            new Expression('COUNT() AS total'),
+        ])
+        ->groupBy('domain')
+        ->orderByDesc('total')
+        ->limit($limit)
+        ->get()
+        ->all();
 
-                return [
-                    'domain' => $row->domain,
-                    'total' => (int) $row->total,
-                ];
-
-            })
-            ->toArray();
+    return array_map(
+        static function ($row): array {
+            return [
+                'domain' => $row->domain,
+                'total' => (int) $row->total,
+            ];
+        },
+        $rows
+    );;
     }
 
     public function getQueryTimeline(
@@ -522,21 +524,25 @@ class ClickHouseDnsQueryRepository implements DnsQueryRepositoryInterface
 
         $query = $this->buildFilteredQuery($filters);
 
-        return $query
+        $rows = $query
             ->select([
-                "$bucket AS bucket",
-                'COUNT() AS total',
+                new Expression("$bucket AS bucket"),
+                new Expression('COUNT() AS total'),
             ])
             ->groupBy('bucket')
             ->orderBy('bucket')
             ->get()
-            ->map(static function ($row): array {
+            ->all();
+
+        return array_map(
+            static function ($row): array {
                 return [
                     'time' => $row->bucket,
                     'total' => (int) $row->total,
                 ];
-            })
-            ->toArray();
+            },
+            $rows
+        );
     }
 
     public function getAllowedBlockedTimeline(
