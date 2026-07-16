@@ -352,13 +352,12 @@ class ClickHouseDnsQueryRepository implements DnsQueryRepositoryInterface
 
     public function findByQueryId(string $queryId): ?array
     {
-        $row = $this->query()
+        $rows = $this->query()
             ->where('query_id', $queryId)
-            ->first();
+            ->limit(1)
+            ->getRows();
 
-        return $row
-            ? (array) $row
-            : null;
+        return $rows[0] ?? null;
     }
 
     public function getDashboardSummary(array $filters = []): array
