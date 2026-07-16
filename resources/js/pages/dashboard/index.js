@@ -1,19 +1,14 @@
 import { formatDateTimeLocal } from './utils';
 import { renderSummary } from './summary';
 import { renderRankingTable } from './rankings';
-import { renderTimelineChart, renderAllowedBlockedTimelineChart } from './charts';
+import {
+    renderTimelineChart,
+    renderAllowedBlockedTimelineChart,
+} from './charts';
 
 const page = document.getElementById('dashboard-page');
 
 if (page) {
-
-    initDashboard();
-
-    loadSummary();
-
-    loadCharts();
-
-} else {
 
     const Dashboard = {
 
@@ -105,7 +100,7 @@ if (page) {
                 ],
                 data: result.data.rankings.top_domains,
             });
-           
+
             renderRankingTable({
                 containerId: 'topClientsLoading',
                 columns: [
@@ -125,10 +120,9 @@ if (page) {
                 ],
                 data: result.data.rankings.top_clients,
             });
-         
+
             renderRankingTable({
                 containerId: 'topVlansLoading',
-
                 columns: [
                     {
                         key: 'vlan_name',
@@ -140,14 +134,11 @@ if (page) {
                         align: 'end',
                     },
                 ],
-
                 data: result.data.rankings.top_vlans,
             });
 
-
             renderRankingTable({
                 containerId: 'topBlockedDomainsLoading',
-
                 columns: [
                     {
                         key: 'domain',
@@ -159,7 +150,6 @@ if (page) {
                         align: 'end',
                     },
                 ],
-
                 data: result.data.rankings.top_blocked_domains,
             });
 
@@ -198,6 +188,5 @@ if (page) {
     };
 
     Dashboard.init();
-    
 
 }
