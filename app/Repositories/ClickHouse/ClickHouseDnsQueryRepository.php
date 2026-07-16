@@ -367,14 +367,15 @@ class ClickHouseDnsQueryRepository implements DnsQueryRepositoryInterface
         $query = $this->buildFilteredQuery($filters);
 
         $summary = $query
-        ->select([
-            'COUNT() AS total_queries',
-            'countIf(disallowed = 1) AS blocked_queries',
-            'countIf(disallowed = 0) AS allowed_queries',
-            'countIf(cached = 1) AS cached_queries',
-            'AVG(elapsed_ms) AS avg_response_time',
-        ])
-        ->first();
+            ->select([
+                'COUNT() AS total_queries',
+                'countIf(disallowed = 1) AS blocked_queries',
+                'countIf(disallowed = 0) AS allowed_queries',
+                'countIf(cached = 1) AS cached_queries',
+                'AVG(elapsed_ms) AS avg_response_time',
+            ])
+            ->get()
+            ->first();
 
         $totalQueries = (int) ($summary->total_queries ?? 0);
         $blockedQueries = (int) ($summary->blocked_queries ?? 0);
